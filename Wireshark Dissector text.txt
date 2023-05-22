@@ -1,0 +1,120 @@
+
+•	Code for declaration of the fields-
+
+message_type =ProtoField.uint8("ulive.MessageType","MessageType",base.DEC)
+question_type =ProtoField.uint8("ulive.Question","Question",base.DEC)
+answer_type =ProtoField.uint8("ulive.Answer","Answer",base.DEC)
+
+•	Code for field registration- 
+
+ulive_protocol.fields = {message_type,question_type,answer_type}
+
+•	Code for creation of a 3 parametered dissection functions:
+
+function ulive_protocol.dissector(buffer, pinfo, tree)
+
+•	Code for setting the protocol column-
+
+ pinfo.cols.protocol = ulive_protocol.name; 
+ 
+•	Code for createing the protocol item tree-
+
+ subtree = tree:add(ulive_protocol,buffer())
+
+•	Code to get the first byte for distinguishing the message type
+
+message_type = buffer(0,1):le_uint() 
+
+•	Code for doing the comparisons
+
+ if message_type == 1 then -- if the packet is a question
+ message_type_str = "Question" 
+ subtree:add_le(message_type,buffer(0,1)):append_text(" (" .. message_type_str .. ")")
+ question_type = buffer(1,1):le_uint()
+
+•	Code for finding the question type
+
+  if question_type == 1 then
+   message_type_str = "Please share the current status of the service" 
+   subtree:add_le(question_type,buffer(1,1)):append_text(" (" .. message_type_str .. ")")
+  else 
+   message_type_str = "Any more questions?” 
+   subtree:add_le(question_type,buffer(1,1)):append_text(" (" .. message_type_str .. ")")
+  end
+ end
+ if message_type == 2 then -- if the packet is an aswer
+  message_type_str = "Answer" 
+  subtree:add_le(message_type,buffer(0,1)):append_text(" (" .. message_type_str .. ")")
+  answer_type = buffer(1,1):le_uint()
+
+•	Code for finding the answer type
+
+  if answer_type == 1 then
+   message_type_str = "Service is working" 
+   subtree:add_le(answer_type,buffer(1,1)):append_text(" (" .. message_type_str .. ")")
+  else 
+   message_type_str = "Sorry, the service is out of order" 
+   subtree:add_le(answer_type,buffer(1,1)):append_text(" (" .. message_type_str .. ")")
+  end
+ end 
+end
+
+
+
+* Code for adding port and protocol-
+
+
+local tcp_port = DissectorTable.get("tcp.port")
+tcp_port:add(12345,ulive_protocol)
+
+* Code for the TCP client in Python- 
+
+
+import socket  
+import sys
+# Test message types defined
+MESSAGE1 = "0101" # "Please share the current status of the service"
+MESSAGE2 = "0102" # "Any more questions?"
+MESSAGE3 = "0201" # "Service is working"
+MESSAGE4 = "0202" # "Sorry, the service is out of order"
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Socket creation successful")
+except socket.error as err:
+    print("socket creation has failed with error %s" % (err))
+
+port = 12345
+try:
+    host_ip = socket.gethostbyname('192.168.1.5') # server ip address or host name
+except socket.gaierror:
+    # Failure message when resolving host process fails
+    print("Error while resolving the host")
+    sys.exit()
+s.connect((host_ip, port))
+s.send(bytes.fromhex(MESSAGE1)) # it will test MESSAGE1
+s.close()
+
+
+* Code for the TCP server in python- 
+
+
+import socket
+# Test message types defined
+MESSAGE1 = "0101" # "Please share the current status of the service"
+MESSAGE2 = "0102" # "Any more questions?"
+MESSAGE3 = "0201" # "Service is working"
+MESSAGE4 = "0202" # "Sorry, the service is out of order"
+s = socket.socket()
+print("Socket creation successful")
+port = 12345
+s.bind(('', port))
+print("socket has binded to %s" % (port))
+s.listen(5)
+print("socket is listening")
+
+while True:
+    c, addr = s.accept()
+    print('Got connection from', addr)
+    #data = c.recv(1024)
+    c.send(bytes.fromhex(MESSAGE4))
+    c.close()
